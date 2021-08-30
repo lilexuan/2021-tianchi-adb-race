@@ -44,6 +44,8 @@ public class DiskRaceEngine {
     }
 
     public static int getPartition(long values) {
+        // 实际上只有64个分区, 虽然移动了7位, 按理来说是有128个分区, 但是第一位是符号位, 而且本次比赛中都是正数
+        // 所以是64个分区
         int offset = 64 - OFFSET;
         return (byte)(values >> offset);
     }

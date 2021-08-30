@@ -63,7 +63,8 @@ public class RaceAnalyticDB implements AnalyticDB {
                 long totalSize = fileChannel.size();
                 long[] readThreadPosition = new long[threadNum];
                 // 设置对齐的 n 个片
-                readThreadPosition[0] = 21;
+                // 这里应该是找到12个线程中, 每一个线程开始读的位置
+                readThreadPosition[0] = 21;  // L_ORDERKEY,L_PARTKEY占了20个字符, 所以要从21开始读
                 for (int i = 1; i < threadNum; i++) {
                     long paddingPosition = totalSize / threadNum * i;
                     MappedByteBuffer mappedByteBuffer = fileChannel.map(MapMode.READ_ONLY, paddingPosition, 100);
@@ -88,8 +89,8 @@ public class RaceAnalyticDB implements AnalyticDB {
                             int readBufferSize = 1024 * 1024 * 2;
                             ByteBuffer byteBuffer = ByteBuffer.allocate(readBufferSize);
                             byte[] readBufferArray;
-                            long readPosition = readThreadPosition[threadNo];
-                            long partitionTotalSize;
+                            long readPosition = readThreadPosition[threadNo];  // 本线程开始读的位置
+                            long partitionTotalSize;  // 本线程读取结束的位置
                             if (threadNo == threadNum - 1) {
                                 partitionTotalSize = totalSize;
                             } else {
@@ -101,12 +102,14 @@ public class RaceAnalyticDB implements AnalyticDB {
                                 fileChannel.read(byteBuffer, readPosition);
                                 readBufferArray = byteBuffer.array();
                                 long val = 0;
+                                // 找到换行的地方
                                 while (size > 0) {
                                     if (readBufferArray[size - 1] == '\n') {
                                         break;
                                     }
                                     size--;
                                 }
+                                // 读取long
                                 for (int i = 0; i < size; i++) {
                                     //if (readBufferArray[i] == '\n') {
                                     //    partRaceEngine.add(threadNo, val);
@@ -137,6 +140,7 @@ public class RaceAnalyticDB implements AnalyticDB {
                                     val = 0;
                                     // skip \n
                                 }
+                                // 更新读取位置
                                 readPosition += size;
                             }
 
@@ -193,4 +197,18 @@ public class RaceAnalyticDB implements AnalyticDB {
         return (table + "." + column).toLowerCase();
     }
 
+    public static void main(String[] args) throws Exception {
+        // 本地机器硬盘上耗时241531ms 大约4分钟
+        // 我自己写的代码则大概要跑8分钟
+        long start = System.currentTimeMillis();
+        RaceAnalyticDB db = new RaceAnalyticDB();
+        String tpchDataFileDir = "D:\\tmp\\tianchiDataStandard";
+        String workspaceDir = "D:\\tmp\\workingdir";
+        db.load(tpchDataFileDir, workspaceDir);
+        String q1 = db.quantile("lineitem", "L_ORDERKEY", 0.8);
+        String q2 = db.quantile("lineitem", "L_PARTKEY", 0.8);
+        System.out.println(q1);
+        System.out.println(q2);
+        System.out.println(System.currentTimeMillis() - start + " ms");
+    }
 }
